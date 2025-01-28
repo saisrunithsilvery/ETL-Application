@@ -1,2 +1,9 @@
 venv/
 scraped_content/
+inputs/
+outputs/
+*.DS_Store
+.env
+__pycache__
+TestingDocs/
+output/
