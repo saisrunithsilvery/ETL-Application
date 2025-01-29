@@ -7,3 +7,4 @@ outputs/
 __pycache__
 TestingDocs/
 output/
+temp_output/
