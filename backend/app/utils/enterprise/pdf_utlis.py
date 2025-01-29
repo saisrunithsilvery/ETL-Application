@@ -14,7 +14,7 @@ from adobe.pdfservices.operation.pdfjobs.params.extract_pdf.extract_element_type
 from adobe.pdfservices.operation.pdfjobs.params.extract_pdf.extract_pdf_params import ExtractPDFParams
 from adobe.pdfservices.operation.pdfjobs.params.extract_pdf.extract_renditions_element_type import ExtractRenditionsElementType
 
-from handler_utils import process_zip  # Import the handler function
+from backend.app.utils.enterprise.handler_utils import process_zip  # Import the handler function
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
