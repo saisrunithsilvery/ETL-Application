@@ -13,18 +13,17 @@ import tempfile
 from pathlib import Path
 import os
 import sys
+import requests
 
 # Add project root to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, project_root)
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:8000')
 
 # Import backend modules
 try:
-    from backend.app.utils.enterprise.pdf_utlis import extract_pdf_content
     from backend.app.utils.opensource.web_utils import WebScraper
-    from backend.app.utils.enterprise.handler_utils import process_zip
-    # from backend.app.utils.opensource.pdf_utils import DoclingConverter
-    print("Successfully imported backend modules")
+   # from backend.app.utils.opensource.pdf_utils import DoclingConverter
 except ImportError as e:
     print(f"Import error: {e}")
     print(f"Current sys.path: {sys.path}")
@@ -38,6 +37,7 @@ if 'extraction_metadata' not in st.session_state:
 
 def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
     """Extract text from PDF using either enterprise or opensource solution"""
+    pdf_path = None
     try:
         # Create temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
@@ -48,57 +48,87 @@ def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
         output_dir.mkdir(parents=True, exist_ok=True)
         
         if extraction_type == "enterprise":
-            try:
-                # Use enterprise Adobe PDF Services
-                zip_path = extract_pdf_content(str(pdf_path), str(output_dir))
-                # Process the ZIP file and get content
-                process_zip(zip_path, output_dir)
-                content_file = output_dir / "markdown" / "content.md"
+            # First API call - PDF extraction
+            response = requests.post(
+                f"{API_BASE_URL}/extract-pdf/enterprise",
+                json={
+                    "pdf_path": str(pdf_path),
+                    "output_dir": str(output_dir)
+                }
+            )
+            
+            if response.status_code != 200:
+                st.error(f"PDF Extraction API Error: {response.json().get('detail', 'Unknown error')}")
+                return None
                 
-                if content_file.exists():
-                    content = content_file.read_text()
-                    # Clean up temporary files
-                    os.unlink(str(pdf_path))
-                    if zip_path and os.path.exists(zip_path):
-                        os.unlink(zip_path)
-                    return content
-                else:
-                    st.error("Content file not found after extraction")
-                    return None
-            except Exception as e:
-                st.error(f"Enterprise PDF extraction failed: {str(e)}")
+            print("PDF Extraction API Response:", response.json())
+            zip_path = response.json().get('zip_path')
+            
+            if not zip_path:
+                st.error("No zip path returned from extraction API")
                 return None
             
-        else:
-            # try:
-                # Use opensource Docling solution
-                converter = DoclingConverter()
-                result = converter.process_pdf(pdf_path, output_dir)
+            # Second API call - ZIP processing
+            result = requests.post(
+                f"{API_BASE_URL}/process-zip/enterprise",
+                json={"zip_path": zip_path}
+            )
+            
+            if result.status_code != 200:
+                st.error(f"ZIP Processing API Error: {result.json().get('detail', 'Unknown error')}")
+                return None
                 
-                if result['status'] == 'success':
-                    content = Path(result['markdown_path']).read_text()
-                    st.session_state.extraction_metadata = {
-                        'tables': result['tables'],
-                        'images': result['images']
-                    }
-                    return content
-                else:
-                    st.error(f"Error in PDF conversion: {result.get('message', 'Unknown error')}")
-                    return None
-            # except Exception as e:
-            #     st.error(f"Open source PDF extraction failed: {str(e)}")
-            #     return None
+            print("ZIP Processing API Response:", result.json())
+            result_data = result.json()
+            print("Result data:", result_data)
+            # Get content from markdown file
+            output_dir = Path(result_data["output_locations"]["output_directory"])
+            markdown_path = output_dir / "markdown" / "content.md"
+
+            if not markdown_path.exists():
+                st.error(f"Markdown file not found at: {markdown_path}")
+                return None
+                
+            content = markdown_path.read_text()
+            # Store metadata
+            st.session_state.extraction_metadata = {
+                "markdown_file": str(markdown_path),
+                "images_directory": result_data["output_locations"]["images_directory"]
+            }
+            return content
+            
+        else:
+            # Use opensource Docling solution
+            try:
+                # converter = DoclingConverter()
+                # result = converter.process_pdf(pdf_path, output_dir)
+                
+                # if result['status'] != 'success':
+                #     st.error(f"Error in PDF conversion: {result.get('message', 'Unknown error')}")
+                #     return None
+                    
+                # content = Path(result['markdown_path']).read_text()
+                # st.session_state.extraction_metadata = {
+                #     'tables': result['tables'],
+                #     'images': result['images']
+                # }
+                return content
+                
+            except Exception as e:
+                st.error(f"Open source PDF extraction failed: {str(e)}")
+                return None
                 
     except Exception as e:
         st.error(f"Error processing PDF: {str(e)}")
         return None
+        
     finally:
         # Cleanup temporary files
-        if 'pdf_path' in locals():
+        if pdf_path:
             try:
                 os.unlink(str(pdf_path))
-            except:
-                pass
+            except Exception as e:
+                print(f"Error removing temporary file: {e}")
 
 def scrape_website(url):
     """Scrape content from website"""
