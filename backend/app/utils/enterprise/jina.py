@@ -1,6 +1,7 @@
 import requests
-# import json
-# import yaml
+import json
+import re
+import yaml
 import logging
 import base64
 from datetime import datetime
@@ -12,7 +13,19 @@ import re
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 _log = logging.getLogger(__name__)
-
+def find_image_urls(text):
+    # Pattern to match URLs starting with http/https and ending with image extensions
+    pattern = r'https?://[^\s<>"]+?\.(?:jpg|jpeg|png|svg|gif)(?=\s|$)'
+    
+    # Find all matches
+    matches = re.findall(pattern, text, re.IGNORECASE) or  []
+    soup = BeautifulSoup(text, "html.parser")
+    for img_tag in soup.find_all("img"):
+        img_url = img_tag.get("src")
+        if img_url:
+            matches.append(img_url)
+        
+    return matches
 def fetch_html(url, output_dir, api_key):
     """Fetch HTML content from a URL using Jina API and save it to a file."""
     direct_headers = {
@@ -51,6 +64,8 @@ def fetch_html(url, output_dir, api_key):
         raw_html_path = Path(output_dir) / "website.html"
         raw_html_path.parent.mkdir(parents=True, exist_ok=True)
         
+
+
         with open(raw_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
@@ -66,7 +81,6 @@ def fetch_html(url, output_dir, api_key):
 
     except requests.exceptions.RequestException as e:
         raise ValueError(f"Failed to fetch {url}. Error: {str(e)}")
-
 def is_data_url(url):
     """Check if the URL is a data URL."""
     return url.startswith('data:')
@@ -90,6 +104,13 @@ def save_data_url(data_url, output_path):
     except Exception as e:
         _log.warning(f"Failed to save data URL: {str(e)}")
         return False
+    
+
+
+def extract_image_name(url):
+    pattern = r"(?<=/)([^/]+\.(?:jpg|jpeg|png|svg|gif))$"
+    match = re.search(pattern, url, re.IGNORECASE)
+    return match.group(1) if match else None
 
 def extract_images_from_html(html_content, output_dir, base_url):
     """Extract and download images from the HTML content."""
@@ -108,6 +129,7 @@ def extract_images_from_html(html_content, output_dir, base_url):
     image_counter = 0
     for img_tag in soup.find_all("img"):
         img_url = img_tag.get("src")
+        
         if not img_url:
             continue
 
@@ -115,15 +137,24 @@ def extract_images_from_html(html_content, output_dir, base_url):
             if is_data_url(img_url):
                 # Handle data URLs
                 image_extension = ".svg" if "svg+xml" in img_url else ".png"
-                image_filename = images_dir / f"image_{image_counter}{image_extension}"
+                image_name=extract_image_name(img_url)or f"image_{image_counter}{image_extension}"
+                print("if block",img_url,image_name)
+                image_filename = images_dir / f"{image_name}"
+                raw_html_path = Path(output_dir) / "website.html"
+                with open(raw_html_path, "w", encoding="utf-8") as f:
+                    replaced_content = html_content.replace(img_url, f"/images/{image_name}")
+                    f.write(replaced_content)
+                
+                
                 if save_data_url(img_url, image_filename):
                     image_counter += 1
-                    _log.info(f"Data URL image saved: {image_filename}")
+                    _log.info(f"Data URL image saved: {img_url}")
             else:
-                # Handle regular URLs
+                # Handle regular 
+                print("else  befor change",img_url)
                 if not img_url.startswith(("http://", "https://")):
                     img_url = urljoin(base_url, img_url)
-
+                print("img_url----------------",img_url)
                 response = requests.get(img_url, headers=headers, stream=True)
                 response.raise_for_status()
 
@@ -134,8 +165,10 @@ def extract_images_from_html(html_content, output_dir, base_url):
                         extension = 'jpg'
                 else:
                     extension = Path(urlparse(img_url).path).suffix.lstrip('.') or 'jpg'
-
-                image_filename = images_dir / f"image_{image_counter}.{extension}"
+                image_name=extract_image_name(img_url)
+                print(image_name,"in elseblock")
+                image_filename = images_dir / f"{image_name}"
+                image_filename_url = images_dir / f"image_{image_counter}.{extension}"
                 with open(image_filename, "wb") as img_file:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
@@ -163,10 +196,31 @@ def main():
 
         # Step 2: Extract images from HTML
         extract_images_from_html(html_content, output_dir, url)
-
+        replace_html(html_content,output_dir)
         _log.info("HTML content successfully processed and saved.")
     except Exception as e:
         _log.error(f"An error occurred: {str(e)}")
+
+def replace_html(html_content,output_dir):
+    try:
+                # # Find all image URLs and replace them with local paths
+        list_urls = find_image_urls(html_content)
+        print(list_urls)
+        for img_url in list_urls:
+            image_name = extract_image_name(img_url)
+            if image_name:
+                local_path = f"{output_dir}/images/{image_name}"
+                print("Local_path----------------",local_path)
+                # Create img tag with local path
+                img_tag = local_path
+                # Replace URL in HTML content
+                html_content = html_content.replace(img_url, img_tag)
+                raw_html_path = Path(output_dir) / "website.html"
+        with open(raw_html_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+    except Exception as e:
+        _log.warning(f"Failed to save data URL: {str(e)}")
+        return False
 
 if __name__ == "__main__":
     main()
