@@ -1,81 +1,119 @@
-import os
-from urllib.parse import urljoin
 import requests
-from apify_client import ApifyClient
-from bs4 import BeautifulSoup
-import markdown
+from pathlib import Path
+import logging
+from markdownify import markdownify
+import re
+from urllib.parse import urljoin
 
-# Initialize Apify client (Replace 'your_apify_token' with your actual token)
-apify_client = ApifyClient("apify_api_TKJgbSjXw7wz9Im6i970h9fwfN5apA3Mmrht")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+_log = logging.getLogger(__name__)
 
-# Function to scrape a webpage
-# Function to scrape a webpage
-def scrape_data(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
+def fetch_markdown(url, output_dir, api_key):
+    """Fetch Markdown content from a URL using Jina API and save it to a file."""
+    base_url = "https://r.jina.ai/"
+    jina_headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "text/markdown"
+    }
     
-    content = []
-    for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'table', 'img']):
-        if element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-            content.append({'type': 'heading', 'text': element.get_text()})
-        elif element.name == 'p':
-            content.append({'type': 'paragraph', 'text': element.get_text()})
-        elif element.name == 'table':
-            table_data = [[cell.get_text() for cell in row.find_all(['td', 'th'])] for row in element.find_all('tr')]
-            content.append({'type': 'table', 'data': table_data})
-        elif element.name == 'img':
-            img_url = element.get('src')
-            if img_url:
-                img_url = urljoin(url, img_url)  # Ensure absolute URL
-                img_extension = os.path.splitext(img_url.split("?")[0])[1].lower()
-                if img_extension not in [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg"]:
-                    img_extension = ".jpg"  # Default to .jpg if format is unknown
-                img_data = requests.get(img_url).content
-                img_folder = "scraped_images"
-                os.makedirs(img_folder, exist_ok=True)
-                img_name = f"{img_folder}/image_{len(content)+1}{img_extension}"
-                with open(img_name, 'wb') as f:
-                    f.write(img_data)
-                content.append({'type': 'image', 'path': img_name})
-    
-    return content
+    params = {
+        "x-respond-with": "markdown",  # Ensure Jina API returns Markdown
+        "token_budget": 200000,
+        "timeout": 10
+    }
 
-# Function to save data in Markdown format
-def save_to_md(content, output_file):
-    md_content = "# Scraped Data\n\n"
+    try:
+        # Request processed Markdown from Jina AI
+        jina_response = requests.get(
+            f"{base_url}{url}",
+            headers=jina_headers,
+            params=params
+        )
+        jina_response.raise_for_status()
+        
+        # Extract Markdown content
+        markdown_content = jina_response.text
+        
+        # Save Markdown content to file
+        md_path = Path(output_dir) / "website.md"
+        md_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(markdown_content)
+        
+        _log.info(f"Markdown content fetched and saved to: {md_path}")
+        
+        return md_path, markdown_content
+
+    except requests.exceptions.RequestException as e:
+        _log.error(f"Failed to fetch {url}. Error: {str(e)}")
+        raise ValueError(f"Failed to fetch {url}. Error: {str(e)}")
+
+def extract_image_name(url):
+    """Extract image filename from URL."""
+    pattern = r"(?<=/)([^/]+\.(?:jpg|jpeg|png|svg|gif))$"
+    match = re.search(pattern, url, re.IGNORECASE)
+    return match.group(1) if match else None
+
+def download_and_replace_images(md_content, output_dir):
+    """Download images (including SVG) and replace URLs in Markdown content with local paths."""
+    pattern = r'!\[.*?\]\((https?://[^\s]+)\)'
+    matches = re.findall(pattern, md_content)
+    images_dir = Path(output_dir) / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+        "Accept": "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Referer": "https://www.google.com",
+    }
     
-    for item in content:
-        if item['type'] == 'heading':
-            md_content += f"## {item['text']}\n\n"
-        elif item['type'] == 'paragraph':
-            md_content += f"{item['text']}\n\n"
-        elif item['type'] == 'table':
-            for row in item['data']:
-                md_content += " | ".join(row) + "\n"
-            md_content += "\n"
-        elif item['type'] == 'image':
-            md_content += f"![Image]({item['path']})\n\n"
+    session = requests.Session()  # Use a session for persistent headers
     
-    with open(output_file, 'w', encoding='utf-8') as f:
+    for img_url in matches:
+        image_name = extract_image_name(img_url)
+        if image_name:
+            local_path = images_dir / image_name
+            try:
+                response = session.get(img_url, headers=headers, stream=True, allow_redirects=True)
+                response.raise_for_status()
+                
+                with open(local_path, "wb") as img_file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            img_file.write(chunk)
+                
+                md_content = md_content.replace(img_url, str(local_path))
+                _log.info(f"Downloaded and replaced: {img_url} -> {local_path}")
+            except requests.exceptions.HTTPError as http_err:
+                _log.warning(f"HTTP error while downloading image {img_url}: {http_err}")
+            except requests.exceptions.RequestException as req_err:
+                _log.warning(f"Request error while downloading image {img_url}: {req_err}")
+    
+    md_path = Path(output_dir) / "website.md"
+    with open(md_path, "w", encoding="utf-8") as f:
         f.write(md_content)
+    
+    _log.info(f"Updated Markdown content saved to: {md_path}")
 
-# URL to scrape
-url = "https://en.wikipedia.org/wiki/Northeastern_University"  # Replace with actual URL
-content = scrape_data(url)
-save_to_md(content, "scraped_data.md")
+def main():
+    # Configuration
+    url = "https://sreenidhi.edu.in/"
+    output_dir = "test_output"
+    api_key = "jina_ad2a179a517a40f991ba1a2de1a1f925YS64rXRYkejV3OIHif7D7sA-U0R1"
 
-print("Scraping completed. Data saved to scraped_data.md")
+    try:
+        # Fetch Markdown content
+        md_path, md_content = fetch_markdown(url, output_dir, api_key)
+        
+        # Download images and replace URLs with local paths
+        download_and_replace_images(md_content, output_dir)
+        
+        _log.info("Markdown content successfully processed and saved.")
+    except Exception as e:
+        _log.error(f"An error occurred: {str(e)}")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+if __name__ == "__main__":
+    main()
