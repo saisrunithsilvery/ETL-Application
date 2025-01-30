@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from pathlib import Path
 import logging
 
-from app.utils.enterprise.pdf_utlis import extract_pdf_content
+from utils.enterprise.pdf_utlis import extract_pdf_content
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

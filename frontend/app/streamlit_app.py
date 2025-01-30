@@ -61,7 +61,7 @@ def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
                 st.error(f"PDF Extraction API Error: {response.json().get('detail', 'Unknown error')}")
                 return None
                 
-            print("PDF Extraction API Response:", response.json())
+         
             zip_path = response.json().get('zip_path')
             
             if not zip_path:
@@ -78,25 +78,31 @@ def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
                 st.error(f"ZIP Processing API Error: {result.json().get('detail', 'Unknown error')}")
                 return None
                 
-            print("ZIP Processing API Response:", result.json())
+         
             result_data = result.json()
-            print("Result data:", result_data)
-            # Get content from markdown file
-            output_dir = Path(result_data["output_locations"]["output_directory"])
-            markdown_path = output_dir / "markdown" / "content.md"
-
-            if not markdown_path.exists():
-                st.error(f"Markdown file not found at: {markdown_path}")
-                return None
-                
-            content = markdown_path.read_text()
-            # Store metadata
-            st.session_state.extraction_metadata = {
-                "markdown_file": str(markdown_path),
-                "images_directory": result_data["output_locations"]["images_directory"]
-            }
-            return content
+         
             
+            # Get content from markdown URL
+            markdown_url = result_data["output_locations"]["markdown_file"]
+            
+            # Fetch content from the pre-signed URL
+            try:
+                markdown_response = requests.get(markdown_url)
+                if markdown_response.status_code == 200:
+                    content = markdown_response.text
+                    # Store metadata
+                    st.session_state.extraction_metadata = {
+                        "markdown_file": markdown_url,
+                        "images_directory": result_data["output_locations"].get("base_path"),
+                        "bucket": result_data["output_locations"].get("bucket")
+                    }
+                    return content
+                else:
+                    st.error(f"Failed to fetch markdown content: {markdown_response.status_code}")
+                    return None
+            except Exception as e:
+                st.error(f"Error fetching markdown content: {str(e)}")
+                return None            
         else:
             # Use opensource Docling solution
             try:
