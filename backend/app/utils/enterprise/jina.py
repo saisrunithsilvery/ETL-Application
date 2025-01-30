@@ -1,7 +1,7 @@
 import requests
 import json
 import re
-import yaml
+# import yaml
 import logging
 import base64
 from datetime import datetime
@@ -188,7 +188,7 @@ def main():
     # Configuration
     url = "https://sreenidhi.edu.in/"
     output_dir = "test_output"
-    api_key = "jina_f1478928aeae4272a020bb08046e1217eDIBRE9huqGkOvNwAkuBDgKytl3q"
+    api_key = "jina_d872ad41e3f04d3eb17b2d227b4ff670r5jn_lTYEGQy1Ps10Ze3jZP9Raax"
 
     try:
         # Step 1: Fetch HTML content using both direct request and Jina
