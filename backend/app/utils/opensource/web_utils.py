@@ -29,7 +29,7 @@ def find_image_urls(text):
             matches.append(img_url)
         
     return matches
-def fetch_html(url, output_dir, api_key):
+def fetch_html(url, output_dir):
     """Fetch HTML content from a URL using Jina API and save it to a file."""
     direct_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -173,7 +173,7 @@ def main():
 
     try:
         # Step 1: Fetch HTML content using both direct request and Jina
-        html_path, html_content = fetch_html(url, output_dir, api_key)
+        html_path, html_content = fetch_html(url, output_dir)
 
         # Step 2: Extract images from HTML
         extract_images_from_html(html_content, output_dir, url)
