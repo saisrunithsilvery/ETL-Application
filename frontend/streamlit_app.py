@@ -59,6 +59,7 @@ def scrape_website(url, scraping_type="enterprise"):
             if result_data["status"] == "success":
                 # Read the markdown content
                 markdown_path = Path(result_data["saved_path"])
+                print("This is the markdown path", markdown_path)
                 if markdown_path.exists():
                     content = markdown_path.read_text(encoding='utf-8')
                     # Store metadata
