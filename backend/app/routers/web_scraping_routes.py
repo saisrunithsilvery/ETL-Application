@@ -1,62 +1,96 @@
 import os
-from fastapi import FastAPI, HTTPException
-from fastapi import APIRouter
-
+import logging
+from fastapi import FastAPI, HTTPException, APIRouter
 from pydantic import BaseModel
 from pathlib import Path
-import logging
+from typing import Dict, Any
 
-from app.utils.enterprise.jina import extract_images_from_html,fetch_html,replace_html
+# Import your existing scraping function
+from app.utils.enterprise.web_utils import scrape_data, save_to_md
+from app.utils.opensource.web_utils import fetch_html, extract_images_from_html, replace_html, process_html_with_docling;
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize FastAPI router
 router = APIRouter()
 
-class PDFExtractionRequest(BaseModel):
+class WebScrapingRequest(BaseModel):
     url: str
     output_dir: str
 
-@router.post("/web-Scraping/enterprise")
-async def extract_pdf(request: PDFExtractionRequest):
+@router.post("/web-scraping/enterprise")
+async def extract_web_data(request: WebScrapingRequest) -> Dict[str, Any]:
     try:
-        # Validate paths
-        url = Path(request.url)
+        # Validate output directory
         output_dir = Path(request.output_dir)
-        
-        # Check if PDF file exists
-        if not url.exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Web page not found : {url}"
-            )
-        # Create output directory if it doesn't exist
         output_dir.mkdir(parents=True, exist_ok=True)
-        
-        #Web scraping extraction:
-        api_key = os.getenv("JINA_API_KEY")
-        html_path, html_content = fetch_html(url, output_dir, api_key)
 
-        # Step 2: Extract images from HTML
-        extract_images_from_html(html_content, output_dir, url)
-        replace_html(html_content,output_dir)
+        # Perform web scraping
+        scraped_content = scrape_data(request.url)
 
+        # Save scraped content to Markdown
+        output_md_path = output_dir / "scraped_data.md"
+        save_to_md(scraped_content, str(output_md_path))
 
-        
-        
         return {
             "status": "success",
-            "saved path": html_path,
-            "message": "PDF extraction completed successfully"
+            "saved_path": str(output_md_path),
+            "message": "Web scraping completed successfully"
         }
-        
+
     except Exception as e:
-        logger.error(f"Error processing PDF: {str(e)}")
+        logger.error(f"Error processing web scraping: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing PDF: {str(e)}"
+            detail=f"Error processing web scraping: {str(e)}"
+
+
+        )
+    
+class WebScrapingRequest(BaseModel):
+    url: str
+    output_dir: str
+
+@router.post("/web-scraping/opensource")
+async def extract_web_data(request: WebScrapingRequest):
+    try:
+        # Validate output directory
+        output_dir = Path(request.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Fetch HTML
+        html_path, html_content = fetch_html(request.url, output_dir)
+
+        # Extract and download images
+        extract_images_from_html(html_content, output_dir, request.url)
+
+        # Replace image paths in HTML
+        with open(html_path, "r", encoding="utf-8") as f:
+            updated_html=f.read()
+        replace_html(updated_html, output_dir)
+
+        # Convert HTML to Markdown
+        process_html_with_docling(html_path, output_dir)
+
+        return {
+            "status": "success",
+            "saved_path": {
+                "html": str(html_path),
+                "markdown": str(output_dir / "website_content.md"),
+                "images_folder": str(output_dir / "images"),
+            },
+            "message": "Web scraping completed successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing web scraping: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing web scraping: {str(e)}"
         )
 
-            
-__all__ = ['router'] 
+
+# Export router
+__all__ = ['router']
