@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 import logging
-from utils.enterprise.handler_utils import process_zip
+from app.utils.enterprise.handler_utils import process_zip
 from fastapi import APIRouter
 import boto3
 from botocore.config import Config
