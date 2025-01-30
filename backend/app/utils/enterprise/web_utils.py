@@ -1,3 +1,4 @@
+import os
 import requests
 # import json
 # import yaml
@@ -153,7 +154,7 @@ def extract_images_from_html(html_content, output_dir, base_url):
 
 def main():
     # Configuration
-    url = "https://sreenidhi.edu.in/"
+    url = "https://sreenidhi.edu.in/" 
     output_dir = "test_output"
     api_key = "jina_f1478928aeae4272a020bb08046e1217eDIBRE9huqGkOvNwAkuBDgKytl3q"
 
