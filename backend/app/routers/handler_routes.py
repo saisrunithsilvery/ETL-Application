@@ -2,8 +2,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 import logging
-from app.utils.enterprise.handler_utils import process_zip
+from utils.enterprise.handler_utils import process_zip
 from fastapi import APIRouter
+import boto3
+from botocore.config import Config
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -12,7 +15,23 @@ router = APIRouter()
 
 class ZIPProcessRequest(BaseModel):
     zip_path: str
-    # output_dir: str = "output"  # Default output directory
+
+def generate_presigned_url(bucket_name: str, object_key: str, expiration: int = 3600):
+    """Generate a presigned URL for an S3 object"""
+    s3_client = boto3.client('s3', config=Config(signature_version='s3v4'))
+    try:
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': bucket_name,
+                'Key': object_key
+            },
+            ExpiresIn=expiration
+        )
+        return url
+    except Exception as e:
+        logger.error(f"Error generating presigned URL: {str(e)}")
+        raise
 
 @router.post("/process-zip/enterprise")
 async def process_zip_file(request: ZIPProcessRequest):
@@ -31,28 +50,28 @@ async def process_zip_file(request: ZIPProcessRequest):
                 detail="File must be a ZIP archive"
             )
         
-        # Create output directory if it doesn't exist
-        print("Current directory:", Path.cwd())
-        output_dir = Path.cwd() / "pdf_output"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Process the ZIP file and get the S3 base path
+        base_url = process_zip(zip_path=str(zip_path))
+        print("Output directory:", base_url)
         
-        # Process the ZIP file
-        process_zip(
-            zip_path=str(zip_path),
-            output_dir=str(output_dir)
-        )
+        # Extract bucket name and key prefix from the base_url
+        # Convert https://bucket.s3.amazonaws.com/path to bucket and path
+        bucket_name = "damg7245-datanexus-pro"
+        base_path = base_url.split(f"{bucket_name}.s3.amazonaws.com/")[1]
         
-        # Return the paths to the generated content
-        markdown_path = output_dir / "markdown" / "content.md"
-        images_dir = output_dir / "images"
+        # Generate presigned URLs
+        markdown_key = f"{base_path}markdown/content.md"
+        images_key = f"{base_path}images"
+        
+        markdown_url = generate_presigned_url(bucket_name, markdown_key)
         
         return {
             "status": "success",
             "message": "ZIP file processed successfully",
             "output_locations": {
-                "markdown_file": str(markdown_path),
-                "images_directory": str(images_dir),
-                "output_directory": str(output_dir)
+                "markdown_file": markdown_url,
+                "base_path": base_path,
+                "bucket": bucket_name
             }
         }
         

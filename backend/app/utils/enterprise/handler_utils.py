@@ -1,5 +1,3 @@
-# zip_handler.py
-
 import logging
 from pathlib import Path
 import json
@@ -7,6 +5,10 @@ import shutil
 import zipfile
 import pandas as pd
 import traceback
+import tempfile
+import boto3
+import uuid
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +107,7 @@ def convert_json_to_markdown(data):
     
     return result.strip()
 
+
 def convert_table_to_markdown(df):
     """Convert pandas DataFrame to markdown table"""
     markdown_lines = []
@@ -122,97 +125,108 @@ def convert_table_to_markdown(df):
     
     return "\n".join(markdown_lines)
 
-def process_zip(zip_path: str, output_dir: str = "output") -> None:
-    """Handler function to process the extracted ZIP file"""
-    base_dir = Path(output_dir)
-    images_dir = base_dir / "images"
-    markdown_dir = base_dir / "markdown"
-    temp_dir = base_dir / "temp_extraction"
 
-    # Create directories
-    for dir_path in [images_dir, markdown_dir, temp_dir]:
-        dir_path.mkdir(parents=True, exist_ok=True)
+def process_zip(zip_path: str) -> str:
+    """Handler function to process the extracted ZIP file and upload to S3"""
+    s3_client = boto3.client('s3')
+    bucket_name = "damg7245-datanexus-pro"
+    
+    # Create unique folder name
+    unique_id = str(uuid.uuid4())[:8]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    process_folder = f"PDF_Extract_{timestamp}_{unique_id}"
+    
+    # Define S3 paths
+    base_s3_path = f"pdf-extract/{process_folder}"
+    images_s3_path = f"{base_s3_path}/images"
+    markdown_s3_path = f"{base_s3_path}/markdown"
 
-    try:
-        # Extract ZIP contents
-        logger.info(f"Extracting ZIP file: {zip_path}")
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
+    # Create temporary directory for processing
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        
+        try:
+            # Extract ZIP contents
+            logger.info(f"Extracting ZIP file: {zip_path}")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir_path)
 
-        final_content = []
+            final_content = []
 
-        # Process structured JSON
-        json_files = list(temp_dir.glob('*.json'))
-        if json_files:
-            json_file = json_files[0]
-            logger.info(f"Found JSON file: {json_file.name}")
-            
-            try:
-                with open(json_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    logger.info("JSON structure keys: " + str(list(data.keys())))
+            # Process structured JSON
+            json_files = list(temp_dir_path.glob('*.json'))
+            if json_files:
+                json_file = json_files[0]
+                logger.info(f"Found JSON file: {json_file.name}")
                 
-                # Convert JSON content to markdown
-                markdown_text = convert_json_to_markdown(data)
-                if markdown_text.strip():
-                    final_content.append(markdown_text)
-                    logger.info("Successfully converted JSON to markdown")
-                else:
-                    logger.warning("No content extracted from JSON")
-            except Exception as e:
-                logger.error(f"Error processing JSON file: {str(e)}")
-                logger.error(traceback.format_exc())
-
-        # Process figures
-        figures_dir = temp_dir / "figures"
-        if figures_dir.exists():
-            logger.info("Processing figures...")
-            final_content.append("\n## Figures\n")
-            for img_file in figures_dir.glob("*"):
-                if img_file.suffix.lower() in ['.png', '.jpg', '.jpeg']:
-                    # Copy image to images directory
-                    shutil.copy2(img_file, images_dir / img_file.name)
-                    logger.info(f"Copied image: {img_file.name}")
-                    # Add image reference
-                    final_content.append(f"\n![{img_file.stem}](../images/{img_file.name})\n")
-
-        # Process tables
-        tables_dir = temp_dir / "tables"
-        if tables_dir.exists():
-            logger.info("Processing tables...")
-            final_content.append("\n## Tables\n")
-            
-            for xlsx_file in tables_dir.glob("*.xlsx"):
                 try:
-                    df = pd.read_excel(xlsx_file)
-                    final_content.append(f"\n### {xlsx_file.stem}\n")
-                    table_content = convert_table_to_markdown(df)
-                    final_content.append(table_content + "\n\n")
+                    with open(json_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        logger.info("JSON structure keys: " + str(list(data.keys())))
+                    
+                    markdown_text = convert_json_to_markdown(data)
+                    if markdown_text.strip():
+                        final_content.append(markdown_text)
+                        logger.info("Successfully converted JSON to markdown")
+                    else:
+                        logger.warning("No content extracted from JSON")
                 except Exception as e:
-                    logger.error(f"Error processing table {xlsx_file.name}: {str(e)}")
+                    logger.error(f"Error processing JSON file: {str(e)}")
+                    logger.error(traceback.format_exc())
 
-        # Save final markdown content
-        content_file = markdown_dir / "content.md"
-        with open(content_file, 'w', encoding='utf-8') as f:
+            # Process figures
+            figures_dir = temp_dir_path / "figures"
+            if figures_dir.exists():
+                logger.info("Processing figures...")
+                final_content.append("\n## Figures\n")
+                for img_file in figures_dir.glob("*"):
+                    if img_file.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+                        s3_image_key = f"{images_s3_path}/{img_file.name}"
+                        # Upload without ACL since bucket uses Object Ownership
+                        s3_client.upload_file(
+                            str(img_file),
+                            bucket_name,
+                            s3_image_key
+                        )
+                        # Generate the full S3 URL for the image
+                        s3_image_url = f"https://{bucket_name}.s3.amazonaws.com/{s3_image_key}"
+                        logger.info(f"Uploaded image: {s3_image_key}")
+                        final_content.append(f"\n![{img_file.stem}]({s3_image_url})\n")
+
+            # Process tables
+            tables_dir = temp_dir_path / "tables"
+            if tables_dir.exists():
+                logger.info("Processing tables...")
+                final_content.append("\n## Tables\n")
+                
+                for xlsx_file in tables_dir.glob("*.xlsx"):
+                    try:
+                        df = pd.read_excel(xlsx_file)
+                        final_content.append(f"\n### {xlsx_file.stem}\n")
+                        table_content = convert_table_to_markdown(df)
+                        final_content.append(table_content + "\n\n")
+                    except Exception as e:
+                        logger.error(f"Error processing table {xlsx_file.name}: {str(e)}")
+
+            # Upload markdown content to S3
             markdown_content = ''.join(final_content)
-            # Clean up any Windows line endings and extra spaces
             markdown_content = markdown_content.replace('\r\n', '\n')
             markdown_content = markdown_content.replace('_x000D_', '')
-            f.write(markdown_content)
             
-        logger.info(f"Created markdown file: {content_file}")
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=f"{markdown_s3_path}/content.md",
+                Body=markdown_content.encode('utf-8')
+            )
+            logger.info(f"Uploaded markdown to S3: {markdown_s3_path}/content.md")
 
-        # Cleanup
-        logger.info("Cleaning up temporary files...")
-        shutil.rmtree(temp_dir)
-        Path(zip_path).unlink()
-        logger.info("Cleanup completed successfully")
+            # Cleanup
+            logger.info("Cleaning up...")
+            Path(zip_path).unlink()
+            logger.info("Cleanup completed successfully")
 
-    except Exception as e:
-        logger.error(f"Error processing ZIP file: {str(e)}")
-        raise
+            return f"https://{bucket_name}.s3.amazonaws.com/{base_s3_path}/"
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    zip_path = "path/to/your/extract.zip"
-    process_zip(zip_path)
+        except Exception as e:
+            logger.error(f"Error processing ZIP file: {str(e)}")
+            raise
