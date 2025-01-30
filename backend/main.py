@@ -1,8 +1,8 @@
 # app/main.py
 from fastapi import FastAPI
 import logging
-from routers import pdf_extract_routes as pdf_routes
-from routers import handler_routes
+from app.routers import pdf_extract_routes as pdf_routes
+from app.routers import handler_routes
 
 
 # Configure logging

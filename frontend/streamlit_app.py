@@ -22,7 +22,8 @@ API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:8000')
 
 # Import backend modules
 try:
-    from backend.app.utils.opensource.web_utils import WebScraper
+    print("Backend modules imported successfully")
+    # from backend.app.utils.opensource.web_utils import WebScraper
    # from backend.app.utils.opensource.pdf_utils import DoclingConverter
 except ImportError as e:
     print(f"Import error: {e}")
