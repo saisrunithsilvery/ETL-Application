@@ -1,7 +1,6 @@
 import requests
 import json
 import re
-import yaml
 import logging
 import base64
 from datetime import datetime
@@ -45,24 +44,6 @@ def fetch_html(url, output_dir, api_key):
         response.raise_for_status()
         html_content = response.text
 
-        # Get Jina's processed version for the markdown
-        # base_url = "https://r.jina.ai/"
-        # jina_headers = {
-        #     "Authorization": f"Bearer {api_key}"
-        # }
-        
-        # params = {
-        #     "content_format": "markdown",
-        #     "token_budget": 200000,
-        #     "timeout": 10
-        # }
-
-        # jina_response = requests.get(
-        #     f"{base_url}{url}",
-        #     headers=jina_headers,
-        #     params=params
-        # )
-        # jina_response.raise_for_status()
         
         # Save raw HTML to a file
         raw_html_path = Path(output_dir) / "website.html"
@@ -73,10 +54,6 @@ def fetch_html(url, output_dir, api_key):
         with open(raw_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
-        # Save Jina's markdown directly
-        # markdown_path = Path(output_dir) / "website_content.md"
-        # with open(markdown_path, "w", encoding="utf-8") as f:
-        #     f.write(jina_response.text)
 
         _log.info(f"HTML content fetched and saved to: {raw_html_path}")
         # _log.info(f"Markdown content saved to: {markdown_path}")
