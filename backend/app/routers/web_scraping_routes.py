@@ -29,6 +29,7 @@ async def extract_web_data(request: WebScrapingRequest) -> Dict[str, Any]:
 
         # Perform web scraping
         scraped_content = scrape_data(request.url)
+       
 
         # Save scraped content to Markdown
         output_md_path = output_dir / "scraped_data.md"
