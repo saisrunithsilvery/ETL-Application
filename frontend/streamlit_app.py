@@ -166,33 +166,33 @@ def scrape_website(url, scraping_type="enterprise"):
                 f"{API_BASE_URL}/web-scraping/opensource",
                 json={
                     "url": url,
-                    "output_dir": str(output_dir)
                 }
             )
-
-            if response.status_code != 200:
+            print("This is the response",response.json)
+            result = requests.post(
+                f"{API_BASE_URL}/web-process/opensource",
+                json={
+                    "url": response.json().get("saved_path"),
+                }
+            )
+            if result.status_code != 200:
                 st.error(f"Web Scraping API Error: {response.json().get('detail', 'Unknown error')}")
                 return None
 
-            result_data = response.json()
-            
+            result_data = result.json()
+            markdown_url = result_data.get("saved_path")
+            print("This is the markdown url",markdown_url)
+            print("This is from the Result data",result_data)
             if result_data["status"] == "success":
-                try:
-                    markdown_response = requests.get(result_data["output_locations"]["markdown_file"])
-                    if markdown_response.status_code == 200:
-                        content = markdown_response.text
-                        st.session_state.extraction_metadata = {
-                            "source_type": "web",
-                            "source_url": url,
-                            "markdown_file": result_data["output_locations"]["markdown_file"],
-                            "images_directory": result_data["output_locations"].get("base_path"),
-                            "bucket": result_data["output_locations"].get("bucket"),
-                            "status": "success"
-                        }
-                        return content
-                except Exception as e:
-                    st.error(f"Error fetching markdown content: {str(e)}")
-                    return None
+                markdown_response = requests.get(markdown_url)
+                print(markdown_response.text)
+                content = markdown_response.text
+                    # markdown_response = requests.get(result_data["output_locations"]["markdown_file"])
+                st.session_state.extraction_metadata = {
+                            "markdown_file": markdown_url,
+                }
+                return content
+              
 
     except Exception as e:
         st.error(f"Error scraping website: {str(e)}")
