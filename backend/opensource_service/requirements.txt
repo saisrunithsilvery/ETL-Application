@@ -32,3 +32,4 @@ wheel>=0.41.0
 # Additional dependencies that might be needed based on usage
 Pillow>=10.0.0  # For image processing if needed
 PyYAML>=6.0.1  # For YAML processing if needed
+fastapi
