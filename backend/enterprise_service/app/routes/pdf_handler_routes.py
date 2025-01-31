@@ -40,7 +40,7 @@ def generate_presigned_url(bucket_name: str, object_key: str, expiration: int = 
 async def process_zip_file(request: ZIPProcessRequest):
     try:
         # Validate ZIP file path
-        print(request.zip_path)
+       
         zip_path = Path(request.zip_path)
         if not zip_path.exists():
             raise HTTPException(

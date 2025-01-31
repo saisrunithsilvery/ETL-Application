@@ -4,3 +4,5 @@ boto3>=1.29.0
 botocore>=1.32.0
 pandas>=2.1.4
 pdfservices-sdk==4.1.0
+requests>=2.31.0
+pathlib>=1.0.1

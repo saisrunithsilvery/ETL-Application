@@ -128,23 +128,38 @@ def scrape_website(url, scraping_type="enterprise"):
                 }
             )
 
+        
             if response.status_code != 200:
                 st.error(f"Web Scraping API Error: {response.json().get('detail', 'Unknown error')}")
                 return None
 
-            result_data = response.json()
+            result = requests.post(
+                f"{API_BASE_URL}/web-process/",
+                json={
+                    "md_path": response.json().get("saved_path"),
+                   
+                }
+            )
+            
+           
+            result_data = result.json()
+            
+            markdown_url = result_data.get("saved_path")
+           
             
             if result_data["status"] == "success":
-                content = Path(result_data["saved_path"]["markdown"]).read_text(encoding='utf-8')
+                markdown_response = requests.get(markdown_url)
+                print(markdown_response.text)
+                content = markdown_response.text
+                # print(f"Content length: {len(content)}")
+                # print(f"First 100 characters: {content[:100]}")
                 st.session_state.extraction_metadata = {
-                    "source_type": "web",
-                    "source_url": url,
-                    "html_path": result_data["saved_path"]["html"],
-                    "markdown_path": result_data["saved_path"]["markdown"],
-                    "images_folder": result_data["saved_path"]["images_folder"],
-                    "status": "success"
+                    "markdown_file": markdown_url
                 }
+                print(f"Content length is the : {len(content)}")
+                print(f"First 100 characters: {content[:100]}")
                 return content
+               
         else:
             # Open source web scraping using API
             response = requests.post(
