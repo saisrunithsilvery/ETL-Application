@@ -75,12 +75,10 @@ def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
                     return None
         else:
             # Open source PDF extraction
+            files = {'file': ('uploaded.pdf', uploaded_file.getvalue(), 'application/pdf')}
             response = requests.post(
-                f"{API_BASE_URL}/extract-pdf/opensource",
-                json={
-                    "pdf_path": str(pdf_path),
-                    "output_dir": str(output_dir)
-                }
+                f"{API_BASE_URL}/pdf-process/opensource",
+                files=files
             )
 
             if response.status_code != 200:
@@ -90,15 +88,21 @@ def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
             result_data = response.json()
             
             if result_data["status"] == "success":
-                content = Path(result_data["markdown_path"]).read_text(encoding='utf-8')
-                st.session_state.extraction_metadata = {
-                    "source_type": "pdf",
-                    "markdown_path": result_data["markdown_path"],
-                    "tables": result_data.get("tables", 0),
-                    "images": result_data.get("images", 0),
-                    "status": "success"
-                }
-                return content
+                # Get markdown content from the URL
+                markdown_response = requests.get(result_data["markdown_url"])
+                if markdown_response.status_code == 200:
+                    content = markdown_response.text
+                    st.session_state.extraction_metadata = {
+                        "source_type": "pdf",
+                        "markdown_url": result_data["markdown_url"],
+                        "table_count": result_data.get("table_count", 0),
+                        "image_count": result_data.get("image_count", 0),
+                        "status": "success"
+                    }
+                    return content
+                else:
+                    st.error("Failed to fetch markdown content")
+                    return None
 
     except Exception as e:
         st.error(f"Error processing PDF: {str(e)}")

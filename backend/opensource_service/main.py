@@ -4,6 +4,7 @@ import logging
 
 from app.routes import web_routes
 from app.routes import web_handler_routes as web_handler
+from app.routes import pdf_routes
 
 
 # Configure logging
@@ -21,6 +22,7 @@ app = FastAPI(
 # app.include_router(pdf_routes.router)
 app.include_router(web_handler.router)
 app.include_router(web_routes.router)
+app.include_router(pdf_routes.router)
 
 # Root endpoint
 @app.get("/")
@@ -31,6 +33,7 @@ async def root():
          "endpoints": {
         "/web-scraping/opensource/": "Scrape content from website using opensource method",
         "/web-process/opensource": "Process content from website using opensource method",
+        "/pdf-process/opensource/": "Process PDF content using opensource method",
           
     }
     }
