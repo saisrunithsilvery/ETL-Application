@@ -5,7 +5,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
+ 
 import io
 import base64
 import tempfile
@@ -14,17 +14,20 @@ import os
 import sys
 import requests
 import shutil
-
+ 
 # Add project root to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, project_root)
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:8000')
-
+API_EN_URL = os.getenv('API_BASE_URL', 'http://localhost:8000')
+API_OP_URL = os.getenv('API_BASE_URL', 'http://localhost:8001')
+ 
 # Initialize session state
 if 'extracted_content' not in st.session_state:
     st.session_state.extracted_content = ""
 if 'extraction_metadata' not in st.session_state:
     st.session_state.extraction_metadata = {}
+API_EN_URL = os.getenv('API_EN_URL', 'http://localhost:8000')
+API_OP_URL = os.getenv('API_OP_URL', 'http://localhost:8001')
 
 def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
     """Extract text from PDF using either enterprise or opensource solution"""
@@ -41,14 +44,14 @@ def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
         if extraction_type == "enterprise":
             # Enterprise PDF extraction using API
             response = requests.post(
-                f"{API_BASE_URL}/extract-pdf/enterprise",
+                f"{API_EN_URL}/extract-pdf/enterprise",
                 json={
                     "pdf_path": str(pdf_path),
                     "output_dir": str(output_dir)
                 }
             )
             result = requests.post(
-                f"{API_BASE_URL}/process-zip/enterprise",
+                f"{API_EN_URL}/process-zip/enterprise",
                 json={
                     "zip_path": response.json().get("zip_path")
                     
@@ -77,7 +80,7 @@ def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
             # Open source PDF extraction
             files = {'file': ('uploaded.pdf', uploaded_file.getvalue(), 'application/pdf')}
             response = requests.post(
-                f"{API_BASE_URL}/pdf-process/opensource",
+                f"{API_OP_URL}/pdf-process/opensource",
                 files=files
             )
 
@@ -115,7 +118,7 @@ def extract_pdf_text(uploaded_file, extraction_type="enterprise"):
                 pdf_path.unlink()
             except Exception as e:
                 print(f"Error removing temporary file: {e}")
-
+ 
 def scrape_website(url, scraping_type="enterprise"):
     """Scrape content from website using either enterprise or opensource solution"""
     try:
@@ -125,7 +128,7 @@ def scrape_website(url, scraping_type="enterprise"):
         if scraping_type == "enterprise":
             # Enterprise web scraping using API
             response = requests.post(
-                f"{API_BASE_URL}/web-scraping/enterprise",
+                f"{API_EN_URL}/web-scraping/enterprise",
                 json={
                     "url": url,
                     "output_dir": str(output_dir)
@@ -138,7 +141,7 @@ def scrape_website(url, scraping_type="enterprise"):
                 return None
 
             result = requests.post(
-                f"{API_BASE_URL}/web-process/",
+                f"{API_EN_URL}/web-process/",
                 json={
                     "md_path": response.json().get("saved_path"),
                    
@@ -167,14 +170,14 @@ def scrape_website(url, scraping_type="enterprise"):
         else:
             # Open source web scraping using API
             response = requests.post(
-                f"{API_BASE_URL}/web-scraping/opensource",
+                f"{API_OP_URL}/web-scraping/opensource",
                 json={
                     "url": url,
                 }
             )
             print("This is the response",response.json)
             result = requests.post(
-                f"{API_BASE_URL}/web-process/opensource",
+                f"{API_OP_URL}/web-process/opensource",
                 json={
                     "url": response.json().get("saved_path"),
                 }
@@ -218,11 +221,11 @@ def get_download_link(text, filename="extracted_content.md"):
     except Exception as e:
         st.error(f"Error creating download link: {str(e)}")
         return None
-
+    
 # Main layout
 st.title("📊 DataNexus Pro")
 st.subheader("Unified Data Extraction Platform")
-
+ 
 # Sidebar
 with st.sidebar:
     st.header("Dashboard Controls")
@@ -230,28 +233,28 @@ with st.sidebar:
         "Select Extraction Type",
         ["PDF Extraction", "Web Scraping"]
     )
-
+ 
     extraction_engine = st.radio(
         "Select Engine",
         ["Enterprise (Advanced)", "Open Source (Basic)"]
     )
-
+ 
 # Main content tabs
 tab1, tab2, tab3 = st.tabs(["📥 Data Source", "📄 Content", "📊 Analysis"])
-
+ 
 with tab1:
     st.header("Data Source/Extraction")
-
+ 
     if extraction_type == "PDF Extraction":
         uploaded_file = st.file_uploader("Upload PDF file", type=['pdf'])
-
+ 
         if uploaded_file is not None and st.button("🚀 Extract Content"):
             with st.spinner("Processing PDF..."):
                 engine = "enterprise" if "Enterprise" in extraction_engine else "opensource"
                 st.session_state.extracted_content = extract_pdf_text(uploaded_file, engine)
                 if st.session_state.extracted_content:
                     st.success("✅ PDF extracted successfully!")
-
+ 
     else:  # Web Scraping
         url = st.text_input("Enter website URL")
         if url and st.button("🌐 Scrape Content"):
@@ -260,7 +263,7 @@ with tab1:
                 st.session_state.extracted_content = scrape_website(url, engine)
                 if st.session_state.extracted_content:
                     st.success("✅ Website scraped successfully!")
-
+ 
 with tab2:
     st.header("Extracted Content")
     if st.session_state.extracted_content:
@@ -279,7 +282,7 @@ with tab2:
                 st.text(f"Source URL: {st.session_state.extraction_metadata.get('source_url', 'N/A')}")
     else:
         st.info("💡 No content extracted yet. Please use the Data Source tab to extract content.")
-
+ 
 with tab3:
     st.header("Analysis Dashboard")
     if st.session_state.extracted_content:
@@ -308,30 +311,169 @@ with tab3:
             )
     else:
         st.info("💡 No content to analyze. Please extract content first.")
-
+ 
 # Styling
 st.markdown("""
-    <style>
-    .download-button {
-        display: inline-block;
-        padding: 0.5em 1em;
-        color: white;
-        background-color: #0066cc;
+   <style>
+    /* Global styles */
+    .stApp {
+        background-color: white;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: white;
+    }
+    
+    /* Navigation items in sidebar */
+    .css-17lntkn {
+        color: #A9A9A9 !important;
+        font-weight: normal;
+    }
+    
+    /* Selected navigation item */
+    .css-17lntkn.selected {
+        background-color: rgba(240, 242, 246, 0.5) !important;
         border-radius: 4px;
-        text-decoration: none;
-        margin: 1em 0;
-        transition: background-color 0.3s ease;
     }
-    .download-button:hover {
-        background-color: #0052a3;
-        text-decoration: none;
+    
+    /* Main content text */
+    h1, h2, h3, p {
+        color: black !important;
     }
-    .stButton>button {
+    
+    /* Feature cards */
+    .feature-card {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 10px 0;
+        border: 1px solid #eee;
+    }
+    
+    .feature-card h3 {
+        color: black !important;
+        margin-bottom: 10px;
+    }
+    
+    .feature-card p {
+        color: #666 !important;
+    }
+    
+    /* Stats container */
+    .stats-container {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+        border: 1px solid #eee;
+    }
+    
+    /* Metric styling */
+    [data-testid="stMetricValue"] {
+        color: black !important;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background-color: white;
+        color: black;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.5rem 1.5rem;
         width: 100%;
     }
-    .stApp {
-        max-width: 1200px;
-        margin: 0 auto;
+    
+    .stButton > button:hover {
+        background-color: #f8f9fa;
+        border-color: #ddd;
+    }
+ 
+    /* Make header white */
+    header[data-testid="stHeader"] {
+        background-color: white;
+    }
+    
+    /* Remove any dark backgrounds */
+    .stApp header {
+        background-color: white !important;
+    }
+    
+    /* Style header elements */
+    .stApp header button {
+        color: black !important;
+    }
+    
+    /* Sidebar navigation styling */
+    [data-testid="stSidebar"] {
+        background-color: white;
+    }
+    
+    /* Remove "data extraction" from top navigation */
+    .css-17lntkn[aria-label="data extraction"] {
+        display: none !important;
+    }
+    
+    /* Navigation items in sidebar */
+    .css-17lntkn {
+        color: #A9A9A9 !important;
+        font-weight: normal;
+    }
+    
+ 
+    /* Fix for the uploaded file name color in the file uploader */
+[data-testid="stFileUploader"] div {
+    color: black !important; /* Ensure the file name is visible */
+    font-weight: 500;        /* Adjust font weight as needed */
+}
+ 
+/* Adjust the input and dropdown text color */
+.stTextInput, .stSelectbox {
+    color: black !important;
+    background-color: white !important;
+}
+ 
+ 
+ 
+ 
+/* Ensure that all text within the sidebar is visible */
+[data-testid="stSidebar"] * {
+    color: black !important;
+}
+ 
+/* General fix for button and interactive element text */
+.stButton > button, .stRadio > div, .stSelectbox > div {
+    color: black !important;
+    background-color: white !important;
+}
+ 
+/* Specific styling for the file uploader */
+.stFileUploader {
+    background-color: #f8f9fa;  /* Light background for better visibility */
+    border: 1px solid #ddd;      /* Light border */
+    border-radius: 4px;
+}
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+    /* Quick Navigation buttons */
+    .stButton > button {
+        background-color: transparent;
+        color: black;
+        border: none;
+        text-align: left;
+        padding: 8px 0;
+        font-weight: normal;
+    }
+    
+    .stButton > button:hover {
+        background-color: rgba(240, 242, 246, 0.5);
+        border-radius: 4px;
     }
     </style>
+    
 """, unsafe_allow_html=True)

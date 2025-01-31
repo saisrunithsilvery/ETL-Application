@@ -124,7 +124,6 @@ def download_and_replace_images(md_path):
         _log.info(f"Uploaded markdown to S3: {markdown_key}")
         
         # Return the base S3 URL for the processed content
-        print("URL of the folder of the processed content:", f"https://{bucket_name}.s3.amazonaws.com/{base_s3_path}/") 
         return f"https://{bucket_name}.s3.amazonaws.com/{base_s3_path}/"
         
     except Exception as e:

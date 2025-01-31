@@ -56,7 +56,7 @@ async def process_zip_file(request: ZIPProcessRequest):
         
         # Process the ZIP file and get the S3 base path
         base_url = process_zip(zip_path=str(zip_path))
-        print("Output directory:", base_url)
+       
         
         # Extract bucket name and key prefix from the base_url
         # Convert https://bucket.s3.amazonaws.com/path to bucket and path
