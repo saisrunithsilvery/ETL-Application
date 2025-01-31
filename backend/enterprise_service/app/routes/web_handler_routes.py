@@ -43,6 +43,8 @@ async def extract_web_data(request: WebScrapingRequest):
         # Use the md_path from the request instead of creating a new one
         # print("Web-process, request from md_path",request.md_path)
         markdown_path = download_and_replace_images(request.md_path)
+        
+        print("Web-process, markdown_path========>>>>>>>>>>", markdown_path)
         print("Web-process, markdown_path", markdown_path)
         bucket_name = "damg7245-datanexus-pro"
         base_path = markdown_path.split(f"{bucket_name}.s3.amazonaws.com/")[1]
