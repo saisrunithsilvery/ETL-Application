@@ -1,36 +1,26 @@
-# HTTP requests library for fetching web content
+# Core web framework
+fastapi>=0.70.0
+uvicorn==0.27.0
+
+# HTTP and web scraping
 requests>=2.32.0
-
-# HTML parsing and processing
 beautifulsoup4>=4.12.0
-markdownify>=0.11.0
 
-# Document processing
-docling>=0.1.0  # Document converter library
+# PDF processing
+PyMuPDF>=1.19.0  # for fitz
+Pillow>=10.0.0   # for PIL/Image processing
+numpy>=1.21.0    # for np arrays
+opencv-python>=4.5.0  # for cv2
 
-# Core dependencies that might be required by other packages
+# AWS integration
+boto3>=1.20.0
+
+# Core utilities and type checking
 python-dateutil>=2.8.2
 urllib3>=2.0.0
-certifi>=2023.7.22
-charset-normalizer>=3.2.0
-idna>=3.4
-
-# Optional but recommended for better HTML parsing
-lxml>=4.9.0
+pydantic>=1.8.0
 
 # Development dependencies
-pytest>=7.4.0  # For running tests
-black>=23.7.0  # For code formatting
-flake8>=6.1.0  # For code linting
-mypy>=1.5.0   # For type checking
-
-# Environment and packaging
-python-dotenv>=1.0.0  # For environment variables if needed
-setuptools>=68.0.0
-wheel>=0.41.0
-
-# Additional dependencies that might be needed based on usage
-Pillow>=10.0.0  # For image processing if needed
-PyYAML>=6.0.1  # For YAML processing if needed
-fastapi
-uvicorn==0.27.0  # or whatever version you prefer
+pytest>=7.4.0  # For testing
+black>=23.7.0  # Code formatting
+flake8>=6.1.0  # Code linting
